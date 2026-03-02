@@ -14,25 +14,9 @@ const BASE_STATUSES = [
 
 const CUSTOM_COLORS = ["#f8c291", "#c8e6c9", "#ffe082", "#d1c4e9", "#b2dfdb", "#f5b7b1", "#aed6f1"];
 
-const DEFAULT_MEMBERS = [
-  { name: "Géraldine", avatar: "https://i.pravatar.cc/80?img=47", defaultPlanning: ["on-site", "remote", "remote", "on-site", "remote"] },
-  { name: "Luc", avatar: "https://i.pravatar.cc/80?img=12", defaultPlanning: Array(DAYS_PER_WEEK).fill("empty") },
-  { name: "Ben", avatar: "https://i.pravatar.cc/80?img=15", defaultPlanning: Array(DAYS_PER_WEEK).fill("empty") },
-  { name: "Sébastien", avatar: "https://i.pravatar.cc/80?img=14", defaultPlanning: ["on-site", "on-site", "remote", "remote", "remote"] },
-  { name: "Guillaume PB", avatar: "https://i.pravatar.cc/80?img=32", defaultPlanning: ["leave", "leave", "leave", "leave", "leave"] },
-  { name: "Jean-Sébastien", avatar: "https://i.pravatar.cc/80?img=24", defaultPlanning: Array(DAYS_PER_WEEK).fill("empty") },
-  { name: "Nabil", avatar: "https://i.pravatar.cc/80?img=52", defaultPlanning: ["remote", "rest", "rest", "on-site", "remote"] },
-  { name: "Alice", avatar: "https://i.pravatar.cc/80?img=5", defaultPlanning: Array(DAYS_PER_WEEK).fill("empty") },
-  { name: "Thomas", avatar: "https://i.pravatar.cc/80?img=18", defaultPlanning: Array(DAYS_PER_WEEK).fill("empty") },
-  { name: "Delphine", avatar: "https://i.pravatar.cc/80?img=44", defaultPlanning: ["on-site", "remote", "remote", "empty", "on-site"] },
-  { name: "Sonia", avatar: "https://i.pravatar.cc/80?img=25", defaultPlanning: ["leave", "leave", "leave", "remote", "remote"] },
-  { name: "Guillaume H", avatar: "https://i.pravatar.cc/80?img=7", defaultPlanning: ["remote", "remote", "remote", "remote", "remote"] },
-  { name: "David", avatar: "https://i.pravatar.cc/80?img=60", defaultPlanning: ["on-site", "remote", "remote", "leave", "leave"] },
-];
-
 const planningByWeek = new Map();
 const customStatuses = [];
-let members = DEFAULT_MEMBERS.map((member) => ({ ...member, defaultPlanning: [...member.defaultPlanning] }));
+let members = [];
 
 const thead = document.querySelector("#presence-table thead");
 const tbody = document.querySelector("#presence-table tbody");
@@ -194,9 +178,7 @@ function applyStatePayload(payload) {
       .map((member, index) => normalizeMember(member, index))
       .filter((member) => !!member);
 
-    if (storedMembers.length > 0) {
-      members = storedMembers;
-    }
+    members = storedMembers;
   }
 
   customStatuses.length = 0;
