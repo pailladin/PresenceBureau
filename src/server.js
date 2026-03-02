@@ -27,6 +27,10 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
-app.listen(port, () => {
-  console.log(`Serveur Presence démarré sur http://localhost:${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Serveur Presence démarré sur http://localhost:${port}`);
+  });
+}
+
+module.exports = app;
