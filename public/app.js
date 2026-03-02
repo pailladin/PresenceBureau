@@ -96,6 +96,7 @@ function normalizeMember(member, fallbackIndex = 0) {
     return null;
   }
 
+  const providedId = typeof member.id === "string" ? member.id.trim() : "";
   const name = typeof member.name === "string" ? member.name.trim() : "";
   if (!name) {
     return null;
@@ -110,7 +111,9 @@ function normalizeMember(member, fallbackIndex = 0) {
     defaultPlanning.push("empty");
   }
 
-  return { name, avatar, defaultPlanning };
+  const id = providedId || `member-${fallbackIndex}-${slugify(name) || Date.now()}`;
+
+  return { id, name, avatar, defaultPlanning };
 }
 
 function normalizeWeekPlanning(weekPlanning, memberCount, validStatusKeys) {
@@ -159,6 +162,7 @@ function sortMembersAndPlanning() {
 let saveTimer = null;
 let saveInProgress = false;
 let saveQueued = false;
+let storageReady = false;
 
 function buildSerializableState() {
   return {
@@ -217,16 +221,16 @@ function applyStatePayload(payload) {
 async function loadPlanningFromStorage() {
   try {
     const response = await fetch(API_STATE_ENDPOINT, { method: "GET" });
-    if (!response.ok) {
-      return;
+    if (response.ok) {
+      const data = await response.json();
+      applyStatePayload(data.payload);
     }
-
-    const data = await response.json();
-    applyStatePayload(data.payload);
-    renderLegend();
-    renderBody();
   } catch (error) {
     console.warn("Impossible de charger les présences depuis Supabase.", error);
+  } finally {
+    storageReady = true;
+    renderLegend();
+    renderBody();
   }
 }
 
@@ -255,6 +259,10 @@ async function flushStateSave() {
 }
 
 function savePlanningToStorage() {
+  if (!storageReady) {
+    return;
+  }
+
   saveQueued = true;
   if (saveTimer) {
     clearTimeout(saveTimer);
@@ -755,6 +763,7 @@ function addMember(name, avatarUrl) {
     : `https://i.pravatar.cc/80?u=${encodeURIComponent(`${normalizedName}-${Date.now()}`)}`;
 
   members.push({
+    id: globalThis.crypto?.randomUUID?.() || `member-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     name: normalizedName,
     avatar,
     defaultPlanning: createEmptyDayArray(),
@@ -765,6 +774,7 @@ function addMember(name, avatarUrl) {
   });
 
   sortMembersAndPlanning();
+  refreshDisplayedWeekPlannings();
   savePlanningToStorage();
   renderBody();
 }
