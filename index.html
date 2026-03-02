@@ -1,0 +1,56 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planning Présence Équipe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Manrope:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="board-wrap">
+      <header class="board-header">
+        <h1>Présence équipe</h1>
+        <p>Clique sur une case pour changer le statut (sans base de données pour le moment).</p>
+        <p id="week-range"></p>
+      </header>
+
+      <section class="status-tools" aria-label="Ajout de statut personnalisé">
+        <div class="top-controls">
+          <div class="legend" aria-label="Légende des statuts" id="status-legend"></div>
+          <form id="custom-status-form" class="custom-status-form">
+            <label for="custom-status-name">Nouveau statut</label>
+            <input id="custom-status-name" name="customStatus" type="text" maxlength="20" placeholder="Ex: Paris" required />
+            <button type="submit">Ajouter</button>
+          </form>
+        </div>
+        <p class="halfday-help">Double-clic sur une case pour passer en demi-journées (matin / après-midi), puis clique sur chaque moitié pour la modifier.</p>
+      </section>
+
+      <section class="table-area" aria-label="Tableau des présences">
+        <div class="table-scroll">
+          <table id="presence-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="member-tools" aria-label="Ajout de personne">
+        <form id="member-form" class="member-form">
+          <label for="member-name">Nouvelle personne</label>
+          <input id="member-name" name="memberName" type="text" maxlength="40" placeholder="Ex: Sophie" required />
+          <input id="member-avatar" name="memberAvatar" type="text" maxlength="200" placeholder="URL photo (optionnel)" />
+          <button type="submit">Ajouter</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
