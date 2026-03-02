@@ -1,8 +1,8 @@
 ﻿const DAYS_PER_WEEK = 5;
 const DISPLAY_WEEKS = 2;
 const TOTAL_DAYS = DAYS_PER_WEEK * DISPLAY_WEEKS;
-const ROOM_CAPACITY = 11;
-const STORAGE_KEY = "presence-data-v3";
+const ROOM_CAPACITY = Number(window.APP_CONFIG?.roomCapacity || 11);
+const API_STATE_ENDPOINT = "/api/state";
 
 const BASE_STATUSES = [
   { key: "empty", label: "", className: "empty" },
@@ -172,73 +172,116 @@ function sortMembersAndPlanning() {
   });
 }
 
-function loadPlanningFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return;
+let saveTimer = null;
+let saveInProgress = false;
+let saveQueued = false;
+
+function buildSerializableState() {
+  return {
+    members,
+    customStatuses,
+    weeks: Object.fromEntries(planningByWeek.entries()),
+  };
+}
+
+function applyStatePayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return;
+  }
+
+  if (Array.isArray(payload.members)) {
+    const storedMembers = payload.members
+      .map((member, index) => normalizeMember(member, index))
+      .filter((member) => !!member);
+
+    if (storedMembers.length > 0) {
+      members = storedMembers;
     }
+  }
 
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") {
-      return;
-    }
-
-    if (Array.isArray(parsed.members)) {
-      const storedMembers = parsed.members
-        .map((member, index) => normalizeMember(member, index))
-        .filter((member) => !!member);
-
-      if (storedMembers.length > 0) {
-        members = storedMembers;
+  customStatuses.length = 0;
+  if (Array.isArray(payload.customStatuses)) {
+    payload.customStatuses.forEach((item) => {
+      if (!item || typeof item !== "object") {
+        return;
       }
-    }
 
-    if (Array.isArray(parsed.customStatuses)) {
-      parsed.customStatuses.forEach((item) => {
-        if (!item || typeof item !== "object") {
-          return;
-        }
+      if (typeof item.key !== "string" || typeof item.label !== "string" || typeof item.color !== "string") {
+        return;
+      }
 
-        if (typeof item.key !== "string" || typeof item.label !== "string" || typeof item.color !== "string") {
-          return;
-        }
+      if (BASE_STATUSES.some((base) => base.key === item.key) || customStatuses.some((status) => status.key === item.key)) {
+        return;
+      }
 
-        if (BASE_STATUSES.some((base) => base.key === item.key) || customStatuses.some((status) => status.key === item.key)) {
-          return;
-        }
+      customStatuses.push({ key: item.key, label: item.label, color: item.color });
+    });
+  }
 
-        customStatuses.push({ key: item.key, label: item.label, color: item.color });
-      });
-    }
-
-    const weeks = parsed.weeks;
-    if (!weeks || typeof weeks !== "object") {
-      return;
-    }
-
+  planningByWeek.clear();
+  const weeks = payload.weeks;
+  if (weeks && typeof weeks === "object") {
     const validStatusKeys = new Set(getStatusCycleKeys());
-
     Object.entries(weeks).forEach(([weekKey, weekPlanning]) => {
       const normalizedWeek = normalizeWeekPlanning(weekPlanning, members.length, validStatusKeys);
       planningByWeek.set(weekKey, normalizedWeek);
     });
+  }
+
+  sortMembersAndPlanning();
+  refreshDisplayedWeekPlannings();
+}
+
+async function loadPlanningFromStorage() {
+  try {
+    const response = await fetch(API_STATE_ENDPOINT, { method: "GET" });
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+    applyStatePayload(data.payload);
+    renderLegend();
+    renderBody();
   } catch (error) {
-    console.warn("Impossible de charger les présences sauvegardées.", error);
+    console.warn("Impossible de charger les présences depuis Supabase.", error);
+  }
+}
+
+async function flushStateSave() {
+  if (saveInProgress || !saveQueued) {
+    return;
+  }
+
+  saveInProgress = true;
+  saveQueued = false;
+
+  try {
+    await fetch(API_STATE_ENDPOINT, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload: buildSerializableState() }),
+    });
+  } catch (error) {
+    console.warn("Impossible de sauvegarder les présences dans Supabase.", error);
+  } finally {
+    saveInProgress = false;
+    if (saveQueued) {
+      void flushStateSave();
+    }
   }
 }
 
 function savePlanningToStorage() {
-  try {
-    const payload = {
-      members,
-      customStatuses,
-      weeks: Object.fromEntries(planningByWeek.entries()),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch (error) {
-    console.warn("Impossible de sauvegarder les présences.", error);
+  saveQueued = true;
+  if (saveTimer) {
+    clearTimeout(saveTimer);
   }
+
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void flushStateSave();
+  }, 250);
 }
 
 function toIsoDate(date) {
@@ -351,13 +394,18 @@ function applyStatusVisual(element, statusKey) {
   return status;
 }
 
-loadPlanningFromStorage();
 sortMembersAndPlanning();
 
 const displayedWeekStart = getDisplayedWeekStart();
 const displayedWeekStarts = Array.from({ length: DISPLAY_WEEKS }, (_, index) => addDays(displayedWeekStart, index * 7));
 const displayedWeekDates = displayedWeekStarts.flatMap((weekStart) => buildWeekDates(weekStart));
-const displayedWeekPlannings = displayedWeekStarts.map((weekStart) => getPlanningForWeek(toIsoDate(weekStart)));
+let displayedWeekPlannings = [];
+
+function refreshDisplayedWeekPlannings() {
+  displayedWeekPlannings = displayedWeekStarts.map((weekStart) => getPlanningForWeek(toIsoDate(weekStart)));
+}
+
+refreshDisplayedWeekPlannings();
 
 function renderWeekRange() {
   if (!weekRange) {
@@ -758,3 +806,4 @@ renderWeekRange();
 renderHeader();
 renderLegend();
 renderBody();
+void loadPlanningFromStorage();
