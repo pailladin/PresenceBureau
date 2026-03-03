@@ -36,6 +36,7 @@ const memberEditModal = document.querySelector("#member-edit-modal");
 const memberEditForm = document.querySelector("#member-edit-form");
 const memberEditNameInput = document.querySelector("#member-edit-name");
 const memberEditAvatarInput = document.querySelector("#member-edit-avatar");
+const memberEditDeleteButton = document.querySelector("#member-edit-delete");
 const memberEditCancelButton = document.querySelector("#member-edit-cancel");
 const helpOpenButton = document.querySelector("#help-open");
 const helpModal = document.querySelector("#help-modal");
@@ -964,8 +965,9 @@ function createStatusCell(memberIndex, columnIndex) {
   return td;
 }
 
-function removeMember(memberIndex) {
-  if (memberIndex < 0 || memberIndex >= members.length) {
+function removeMember(memberId) {
+  const memberIndex = members.findIndex((item) => item.id === memberId);
+  if (memberIndex === -1) {
     return;
   }
 
@@ -1070,17 +1072,7 @@ function renderBody() {
 
     nameWrap.append(avatarButton, label);
 
-    const removeButton = document.createElement("button");
-    removeButton.type = "button";
-    removeButton.className = "remove-member-btn";
-    removeButton.textContent = "Suppr.";
-    removeButton.setAttribute("aria-label", `Supprimer ${member.name}`);
-    removeButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      removeMember(memberIndex);
-    });
-
-    nameCell.append(nameWrap, removeButton);
+    nameCell.append(nameWrap);
     tr.append(nameCell);
 
     for (let columnIndex = 0; columnIndex < TOTAL_DAYS; columnIndex += 1) {
@@ -1215,6 +1207,17 @@ memberEditForm.addEventListener("submit", (event) => {
 
 memberEditCancelButton.addEventListener("click", () => {
   closeMemberEditModal();
+});
+
+memberEditDeleteButton.addEventListener("click", () => {
+  if (!editingMemberId) {
+    closeMemberEditModal();
+    return;
+  }
+
+  const deletedMemberId = editingMemberId;
+  closeMemberEditModal();
+  removeMember(deletedMemberId);
 });
 
 memberEditModal.addEventListener("click", (event) => {

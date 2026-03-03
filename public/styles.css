@@ -250,16 +250,6 @@ td.name {
   outline-offset: 2px;
 }
 
-.remove-member-btn {
-  border: 1px solid #a76639;
-  background: #f8d7c2;
-  color: #6e2f09;
-  font-size: 0.72rem;
-  padding: 0.1rem 0.35rem;
-  cursor: pointer;
-  line-height: 1.2;
-}
-
 .avatar {
   width: 36px;
   height: 36px;
@@ -485,6 +475,13 @@ td.status.half-day {
   background: #f6f6f6;
   padding: 0 0.65rem;
   cursor: pointer;
+}
+
+.modal-actions .danger {
+  margin-right: auto;
+  border-color: #a76639;
+  background: #f8d7c2;
+  color: #6e2f09;
 }
 
 .help-panel {
