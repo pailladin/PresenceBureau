@@ -49,6 +49,16 @@ body {
   flex-wrap: nowrap;
 }
 
+.help-button {
+  margin-left: auto;
+  height: 31px;
+  border: 1px solid #8c8c8c;
+  background: #f6f6f6;
+  padding: 0 0.7rem;
+  cursor: pointer;
+  font-size: 0.84rem;
+}
+
 #week-range {
   font-weight: 700;
 }
@@ -434,9 +444,31 @@ td.status.half-day {
   cursor: pointer;
 }
 
+.help-panel {
+  width: min(760px, 100%);
+}
+
+.help-content {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.help-content p {
+  margin: 0.18rem 0;
+}
+
 @media (max-width: 768px) {
   .top-controls {
     align-items: flex-start;
+  }
+
+  .board-header {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .help-button {
+    margin-left: 0;
   }
 
   .custom-status-form {

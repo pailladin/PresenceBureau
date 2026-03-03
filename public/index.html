@@ -17,6 +17,7 @@
       <header class="board-header">
         <h1>Présence équipe</h1>
         <p id="week-range"></p>
+        <button type="button" id="help-open" class="help-button">Aide</button>
       </header>
 
       <section class="status-tools" aria-label="Ajout de statut personnalisé">
@@ -63,6 +64,30 @@
             <button type="submit">Enregistrer</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="help-modal" class="modal" aria-hidden="true">
+      <div class="modal-panel help-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <h2 id="help-title">Aide rapide</h2>
+        <div class="help-content">
+          <p><strong>Statuts dans le tableau</strong></p>
+          <p>Clic sur une case: change le statut.</p>
+          <p>Double-clic sur une case: passe en demi-journee (matin/apres-midi), puis clic sur chaque moitie pour modifier.</p>
+          <p>Clic droit sur une case: copie ce statut sur le jour suivant.</p>
+          <p><strong>Statuts personnalises</strong></p>
+          <p>Champ "Nouveau statut" en haut a droite: ajoute un statut personnalise.</p>
+          <p>Clic droit sur un statut en haut: supprime le statut (avec confirmation).</p>
+          <p>Les statuts Vide, Sur site, Teletravail et Conge ne sont pas supprimables.</p>
+          <p><strong>Gestion des personnes</strong></p>
+          <p>Zone "Nouvelle personne" en bas: ajoute une personne.</p>
+          <p>Bouton "Suppr." sur la ligne: supprime une personne.</p>
+          <p>Clic sur la photo: ouvre la fenetre pour modifier nom et photo.</p>
+          <p>Bouton "⧉" en fin de ligne: copie la semaine 1 vers la semaine 2.</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="help-close">Fermer</button>
+        </div>
       </div>
     </div>
 

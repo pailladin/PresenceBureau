@@ -35,6 +35,9 @@ const memberEditForm = document.querySelector("#member-edit-form");
 const memberEditNameInput = document.querySelector("#member-edit-name");
 const memberEditAvatarInput = document.querySelector("#member-edit-avatar");
 const memberEditCancelButton = document.querySelector("#member-edit-cancel");
+const helpOpenButton = document.querySelector("#help-open");
+const helpModal = document.querySelector("#help-modal");
+const helpCloseButton = document.querySelector("#help-close");
 
 function createEmptyDayArray() {
   return Array(DAYS_PER_WEEK).fill("empty");
@@ -753,6 +756,16 @@ function closeMemberEditModal() {
   editingMemberId = null;
 }
 
+function openHelpModal() {
+  helpModal.classList.add("open");
+  helpModal.setAttribute("aria-hidden", "false");
+}
+
+function closeHelpModal() {
+  helpModal.classList.remove("open");
+  helpModal.setAttribute("aria-hidden", "true");
+}
+
 function copyFirstWeekToSecondWeek(memberIndex) {
   if (DISPLAY_WEEKS < 2 || displayedWeekPlannings.length < 2) {
     return;
@@ -959,9 +972,31 @@ memberEditModal.addEventListener("click", (event) => {
   }
 });
 
+helpOpenButton.addEventListener("click", () => {
+  openHelpModal();
+});
+
+helpCloseButton.addEventListener("click", () => {
+  closeHelpModal();
+});
+
+helpModal.addEventListener("click", (event) => {
+  if (event.target === helpModal) {
+    closeHelpModal();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && memberEditModal.classList.contains("open")) {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (memberEditModal.classList.contains("open")) {
     closeMemberEditModal();
+  }
+
+  if (helpModal.classList.contains("open")) {
+    closeHelpModal();
   }
 });
 
