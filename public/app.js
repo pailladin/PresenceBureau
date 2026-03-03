@@ -9,9 +9,11 @@ const BASE_STATUSES = [
   { key: "on-site", label: "Sur site", className: "on-site" },
   { key: "remote", label: "Télétravail", className: "remote" },
   { key: "leave", label: "Congé", className: "leave" },
-  { key: "rest", label: "Biot", className: "rest" },
+  { key: "rest", label: "Déplacement", className: "rest" },
+  { key: "holiday", label: "Férié", className: "holiday" },
+  { key: "school", label: "École", className: "school" },
 ];
-const IMMUTABLE_STATUS_KEYS = new Set(["empty", "on-site", "remote", "leave"]);
+const IMMUTABLE_STATUS_KEYS = new Set(["empty", "on-site", "remote", "leave", "holiday", "school"]);
 
 const CUSTOM_COLORS = ["#f8c291", "#c8e6c9", "#ffe082", "#d1c4e9", "#b2dfdb", "#f5b7b1", "#aed6f1"];
 
@@ -55,13 +57,6 @@ function getStatusCycleKeys() {
   return getAllStatuses().map((status) => status.key);
 }
 
-function getNextStatusKey(currentKey) {
-  const cycle = getStatusCycleKeys();
-  const currentIndex = cycle.indexOf(currentKey);
-  const safeIndex = currentIndex >= 0 ? currentIndex : 0;
-  return cycle[(safeIndex + 1) % cycle.length];
-}
-
 function slugify(text) {
   return text
     .toLowerCase()
@@ -79,15 +74,78 @@ function isHalfDayEntry(entry) {
   return !!entry && typeof entry === "object" && entry.type === "half";
 }
 
+function isFullDayEntry(entry) {
+  return !!entry && typeof entry === "object" && entry.type === "full";
+}
+
+function normalizeLocation(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim();
+}
+
+function getFullDayStatus(entry) {
+  if (typeof entry === "string") {
+    return entry;
+  }
+  if (isFullDayEntry(entry)) {
+    return entry.status;
+  }
+  return "empty";
+}
+
+function getFullDayLocation(entry) {
+  if (!isFullDayEntry(entry) || entry.status !== "rest") {
+    return "";
+  }
+  return normalizeLocation(entry.location);
+}
+
+function createFullDayEntry(statusKey, location = "") {
+  if (statusKey === "rest") {
+    const normalized = normalizeLocation(location);
+    if (normalized) {
+      return { type: "full", status: "rest", location: normalized };
+    }
+  }
+  return statusKey;
+}
+
+function getHalfDayLocation(entry, halfKey) {
+  if (!isHalfDayEntry(entry)) {
+    return "";
+  }
+  const status = entry[halfKey];
+  if (status !== "rest") {
+    return "";
+  }
+  const locationKey = halfKey === "am" ? "amLocation" : "pmLocation";
+  return normalizeLocation(entry[locationKey]);
+}
+
 function normalizeDayEntry(entry, validStatusKeys) {
   if (typeof entry === "string") {
     return validStatusKeys.has(entry) ? entry : "empty";
   }
 
+  if (isFullDayEntry(entry)) {
+    const status = validStatusKeys.has(entry.status) ? entry.status : "empty";
+    const location = status === "rest" ? normalizeLocation(entry.location) : "";
+    return createFullDayEntry(status, location);
+  }
+
   if (isHalfDayEntry(entry)) {
     const morning = validStatusKeys.has(entry.am) ? entry.am : "empty";
     const afternoon = validStatusKeys.has(entry.pm) ? entry.pm : "empty";
-    return { type: "half", am: morning, pm: afternoon };
+    const normalized = { type: "half", am: morning, pm: afternoon };
+    if (morning === "rest") {
+      normalized.amLocation = normalizeLocation(entry.amLocation);
+    }
+    if (afternoon === "rest") {
+      normalized.pmLocation = normalizeLocation(entry.pmLocation);
+    }
+    return normalized;
   }
 
   return "empty";
@@ -95,7 +153,17 @@ function normalizeDayEntry(entry, validStatusKeys) {
 
 function cloneDayEntry(entry) {
   if (isHalfDayEntry(entry)) {
-    return { type: "half", am: entry.am, pm: entry.pm };
+    const cloned = { type: "half", am: entry.am, pm: entry.pm };
+    if (entry.amLocation) {
+      cloned.amLocation = entry.amLocation;
+    }
+    if (entry.pmLocation) {
+      cloned.pmLocation = entry.pmLocation;
+    }
+    return cloned;
+  }
+  if (isFullDayEntry(entry)) {
+    return { type: "full", status: entry.status, location: entry.location || "" };
   }
   return entry;
 }
@@ -121,6 +189,13 @@ function removeStatusKeyFromPlanning(statusKey) {
           continue;
         }
 
+        if (isFullDayEntry(entry)) {
+          if (entry.status === statusKey) {
+            memberPlanning[dayIndex] = "empty";
+          }
+          continue;
+        }
+
         if (!isHalfDayEntry(entry)) {
           continue;
         }
@@ -129,9 +204,17 @@ function removeStatusKeyFromPlanning(statusKey) {
         const afternoon = entry.pm === statusKey ? "empty" : entry.pm;
 
         if (morning === afternoon) {
-          memberPlanning[dayIndex] = morning;
+          const location = morning === "rest" ? getHalfDayLocation(entry, "am") : "";
+          memberPlanning[dayIndex] = createFullDayEntry(morning, location);
         } else {
-          memberPlanning[dayIndex] = { type: "half", am: morning, pm: afternoon };
+          const updated = { type: "half", am: morning, pm: afternoon };
+          if (morning === "rest") {
+            updated.amLocation = getHalfDayLocation(entry, "am");
+          }
+          if (afternoon === "rest") {
+            updated.pmLocation = getHalfDayLocation(entry, "pm");
+          }
+          memberPlanning[dayIndex] = updated;
         }
       }
     }
@@ -234,6 +317,7 @@ let saveInProgress = false;
 let saveQueued = false;
 let storageReady = false;
 let editingMemberId = null;
+let statusPickerElement = null;
 
 function buildSerializableState() {
   return {
@@ -446,7 +530,7 @@ function applyStatusVisual(element, statusKey) {
   const statusMap = getStatusMap();
   const status = statusMap.get(statusKey) || statusMap.get("empty");
 
-  element.classList.remove("on-site", "remote", "leave", "rest", "empty");
+  element.classList.remove("on-site", "remote", "leave", "holiday", "school", "rest", "empty");
   element.style.backgroundColor = "";
 
   if (status.className) {
@@ -458,6 +542,103 @@ function applyStatusVisual(element, statusKey) {
   }
 
   return status;
+}
+
+function getStatusDisplayLabel(statusKey) {
+  if (statusKey === "rest") {
+    return "Dép.";
+  }
+  const status = getStatusMap().get(statusKey);
+  return status?.label || "Vide";
+}
+
+function getStatusFullLabel(statusKey) {
+  const status = getStatusMap().get(statusKey);
+  return status?.label || "Vide";
+}
+
+function ensureStatusPicker() {
+  if (statusPickerElement) {
+    return statusPickerElement;
+  }
+
+  statusPickerElement = document.createElement("div");
+  statusPickerElement.className = "status-picker";
+  document.body.append(statusPickerElement);
+  return statusPickerElement;
+}
+
+function closeStatusPicker() {
+  if (!statusPickerElement) {
+    return;
+  }
+  statusPickerElement.classList.remove("open");
+  statusPickerElement.replaceChildren();
+}
+
+function requestDisplacementLocation(initialValue = "") {
+  const value = window.prompt("Lieu du déplacement (optionnel):", initialValue);
+  if (value === null) {
+    return null;
+  }
+  return normalizeLocation(value);
+}
+
+function openStatusPicker(anchorElement, currentKey, onSelect) {
+  const picker = ensureStatusPicker();
+  picker.replaceChildren();
+
+  getAllStatuses().forEach((status) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "status-picker-option";
+    option.textContent = status.label || "Vide";
+    option.setAttribute("aria-label", `Choisir ${status.label || "Vide"}`);
+
+    if (status.key === currentKey) {
+      option.classList.add("selected");
+    }
+
+    if (status.className) {
+      option.classList.add(status.className);
+    }
+
+    if (status.color) {
+      option.style.backgroundColor = status.color;
+    }
+
+    option.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeStatusPicker();
+      onSelect(status.key);
+    });
+
+    picker.append(option);
+  });
+
+  picker.classList.add("open");
+
+  const rect = anchorElement.getBoundingClientRect();
+  const viewportPadding = 8;
+  const menuWidth = picker.offsetWidth;
+  const menuHeight = picker.offsetHeight;
+
+  let left = window.scrollX + rect.left;
+  let top = window.scrollY + rect.bottom + 6;
+
+  const maxLeft = window.scrollX + window.innerWidth - menuWidth - viewportPadding;
+  if (left > maxLeft) {
+    left = Math.max(window.scrollX + viewportPadding, maxLeft);
+  }
+
+  const maxTop = window.scrollY + window.innerHeight - menuHeight - viewportPadding;
+  if (top > maxTop) {
+    top = Math.max(window.scrollY + viewportPadding, window.scrollY + rect.top - menuHeight - 6);
+  }
+
+  picker.style.left = `${left}px`;
+  picker.style.top = `${top}px`;
 }
 
 sortMembersAndPlanning();
@@ -526,9 +707,16 @@ function toggleHalfDay(weekPlanning, memberIndex, dayIndex) {
   const current = weekPlanning[memberIndex][dayIndex];
 
   if (isHalfDayEntry(current)) {
-    weekPlanning[memberIndex][dayIndex] = current.am;
+    weekPlanning[memberIndex][dayIndex] = createFullDayEntry(current.am, getHalfDayLocation(current, "am"));
   } else {
-    weekPlanning[memberIndex][dayIndex] = { type: "half", am: current, pm: current };
+    const status = getFullDayStatus(current);
+    const location = getFullDayLocation(current);
+    const next = { type: "half", am: status, pm: status };
+    if (status === "rest" && location) {
+      next.amLocation = location;
+      next.pmLocation = location;
+    }
+    weekPlanning[memberIndex][dayIndex] = next;
   }
 
   savePlanningToStorage();
@@ -543,13 +731,20 @@ function createHalfButton(memberIndex, columnIndex, halfKey, statusKey) {
   button.type = "button";
   button.className = `half-status ${halfKey}`;
 
-  const status = applyStatusVisual(button, statusKey);
-  button.textContent = status.label || "Vide";
-
   const halfLabel = halfKey === "am" ? "Matin" : "Après-midi";
-  button.setAttribute("aria-label", `${members[memberIndex].name} ${displayedWeekDates[columnIndex].short} ${halfLabel}: ${status.label || "vide"}`);
+  const halfLocation = getHalfDayLocation(weekPlanning[memberIndex][dayIndex], halfKey);
+  applyStatusVisual(button, statusKey);
+  const shortLabel = getStatusDisplayLabel(statusKey);
+  const fullLabel = getStatusFullLabel(statusKey);
+  button.textContent = halfLocation ? `${shortLabel} - ${halfLocation}` : shortLabel;
+  button.title = halfLocation ? `Lieu: ${halfLocation}` : "";
+  button.setAttribute(
+    "aria-label",
+    `${members[memberIndex].name} ${displayedWeekDates[columnIndex].short} ${halfLabel}: ${fullLabel}${halfLocation ? ` - ${halfLocation}` : ""}`
+  );
 
   button.addEventListener("click", (event) => {
+    event.preventDefault();
     event.stopPropagation();
 
     const entry = weekPlanning[memberIndex][dayIndex];
@@ -557,9 +752,33 @@ function createHalfButton(memberIndex, columnIndex, halfKey, statusKey) {
       return;
     }
 
-    entry[halfKey] = getNextStatusKey(entry[halfKey]);
-    savePlanningToStorage();
-    renderBody();
+    openStatusPicker(button, entry[halfKey], (selectedStatusKey) => {
+      const currentEntry = weekPlanning[memberIndex][dayIndex];
+      if (!isHalfDayEntry(currentEntry)) {
+        return;
+      }
+
+      const locationKey = halfKey === "am" ? "amLocation" : "pmLocation";
+      if (selectedStatusKey === "rest") {
+        const existingLocation = getHalfDayLocation(currentEntry, halfKey);
+        const selectedLocation = requestDisplacementLocation(existingLocation);
+        if (selectedLocation === null) {
+          return;
+        }
+        currentEntry[halfKey] = "rest";
+        if (selectedLocation) {
+          currentEntry[locationKey] = selectedLocation;
+        } else {
+          delete currentEntry[locationKey];
+        }
+      } else {
+        currentEntry[halfKey] = selectedStatusKey;
+        delete currentEntry[locationKey];
+      }
+
+      savePlanningToStorage();
+      renderBody();
+    });
   });
 
   return button;
@@ -682,32 +901,63 @@ function createStatusCell(memberIndex, columnIndex) {
     return td;
   }
 
-  const status = applyStatusVisual(td, dayEntry);
-  td.textContent = status.label;
+  const statusKey = getFullDayStatus(dayEntry);
+  const location = getFullDayLocation(dayEntry);
+  applyStatusVisual(td, statusKey);
+  const shortLabel = getStatusDisplayLabel(statusKey);
+  const fullLabel = getStatusFullLabel(statusKey);
+  td.textContent = location ? `${shortLabel} - ${location}` : shortLabel;
+  td.title = location ? `${fullLabel} - ${location}` : fullLabel;
   td.setAttribute("role", "button");
   td.setAttribute("tabindex", "0");
-  td.setAttribute("aria-label", `${members[memberIndex].name} ${displayedWeekDates[columnIndex].short}: ${status.label || "vide"}`);
+  td.setAttribute(
+    "aria-label",
+    `${members[memberIndex].name} ${displayedWeekDates[columnIndex].short}: ${fullLabel}${location ? ` - ${location}` : ""}`
+  );
 
-  const updateStatus = () => {
-    weekPlanning[memberIndex][dayIndex] = getNextStatusKey(dayEntry);
-    savePlanningToStorage();
-    renderBody();
+  const openPicker = () => {
+    const currentEntry = weekPlanning[memberIndex][dayIndex];
+    if (isHalfDayEntry(currentEntry)) {
+      return;
+    }
+
+    openStatusPicker(td, statusKey, (selectedStatusKey) => {
+      const refreshedEntry = weekPlanning[memberIndex][dayIndex];
+      if (isHalfDayEntry(refreshedEntry)) {
+        return;
+      }
+
+      if (selectedStatusKey === "rest") {
+        const existingLocation = getFullDayLocation(refreshedEntry);
+        const selectedLocation = requestDisplacementLocation(existingLocation);
+        if (selectedLocation === null) {
+          return;
+        }
+        weekPlanning[memberIndex][dayIndex] = createFullDayEntry("rest", selectedLocation);
+      } else {
+        weekPlanning[memberIndex][dayIndex] = selectedStatusKey;
+      }
+
+      savePlanningToStorage();
+      renderBody();
+    });
   };
 
-  td.addEventListener("click", () => {
+  td.addEventListener("click", (event) => {
+    event.stopPropagation();
     if (clickTimer) {
       return;
     }
 
     clickTimer = setTimeout(() => {
-      updateStatus();
+      openPicker();
       clickTimer = null;
     }, 180);
   });
   td.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      updateStatus();
+      openPicker();
     }
   });
 
@@ -787,6 +1037,7 @@ function copyFirstWeekToSecondWeek(memberIndex) {
 }
 
 function renderBody() {
+  closeStatusPicker();
   renderHeader();
 
   const rows = members.map((member, memberIndex) => {
@@ -986,10 +1237,30 @@ helpModal.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("pointerdown", (event) => {
+  if (!statusPickerElement || !statusPickerElement.classList.contains("open")) {
+    return;
+  }
+  if (statusPickerElement.contains(event.target)) {
+    return;
+  }
+  closeStatusPicker();
+});
+
+window.addEventListener("resize", () => {
+  closeStatusPicker();
+});
+
+document.addEventListener("scroll", () => {
+  closeStatusPicker();
+}, true);
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
   }
+
+  closeStatusPicker();
 
   if (memberEditModal.classList.contains("open")) {
     closeMemberEditModal();

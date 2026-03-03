@@ -29,6 +29,7 @@
    - `supabase/migrations/001_presence_state.sql`
    - `supabase/migrations/002_presence_members_days.sql`
    - `supabase/migrations/003_presence_custom_statuses.sql`
+   - `supabase/migrations/004_presence_day_locations.sql`
 3. Verifier que les tables `public.presence_members`, `public.presence_days` et `public.presence_custom_statuses` existent.
 4. Renseigner `.env` avec:
    - `SUPABASE_URL`

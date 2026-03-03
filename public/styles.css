@@ -6,7 +6,9 @@
   --onsite: #8db6f2;
   --remote: #ece79a;
   --leave: #8edbd6;
-  --rest: #9db7f0;
+  --holiday: #e8a8da;
+  --school: #8fdd97;
+  --rest: #f4b183;
   --empty: #f5f5f5;
   --text: #1f1f1f;
   --line: #c4c4c4;
@@ -378,12 +380,53 @@ td.status.half-day {
   background: var(--leave);
 }
 
+.holiday {
+  background: var(--holiday);
+}
+
+.school {
+  background: var(--school);
+}
+
 .rest {
   background: var(--rest);
 }
 
 .empty {
   background: var(--empty);
+}
+
+.status-picker {
+  position: absolute;
+  display: none;
+  min-width: 150px;
+  max-height: 260px;
+  overflow: auto;
+  background: #f8f8f8;
+  border: 1px solid #9f9f9f;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  padding: 0.3rem;
+  z-index: 1100;
+}
+
+.status-picker.open {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.status-picker-option {
+  width: 100%;
+  border: 1px solid #b5b5b5;
+  padding: 0.28rem 0.45rem;
+  text-align: left;
+  cursor: pointer;
+  font-family: Manrope, "Segoe UI", sans-serif;
+  font-size: 0.82rem;
+}
+
+.status-picker-option.selected {
+  outline: 2px solid #333;
+  outline-offset: -2px;
 }
 
 .modal {

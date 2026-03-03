@@ -73,20 +73,37 @@ function normalizeStatusKey(value) {
   return trimmed || "empty";
 }
 
+function normalizeLocation(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim();
+}
+
 function normalizeDayEntry(entry) {
   if (typeof entry === "string") {
     const key = normalizeStatusKey(entry);
-    return { am: key, pm: key };
+    return { am: key, pm: key, amLocation: "", pmLocation: "" };
+  }
+
+  if (entry && typeof entry === "object" && entry.type === "full") {
+    const status = normalizeStatusKey(entry.status);
+    const location = status === "rest" ? normalizeLocation(entry.location) : "";
+    return { am: status, pm: status, amLocation: location, pmLocation: location };
   }
 
   if (entry && typeof entry === "object" && entry.type === "half") {
+    const am = normalizeStatusKey(entry.am);
+    const pm = normalizeStatusKey(entry.pm);
     return {
-      am: normalizeStatusKey(entry.am),
-      pm: normalizeStatusKey(entry.pm),
+      am,
+      pm,
+      amLocation: am === "rest" ? normalizeLocation(entry.amLocation) : "",
+      pmLocation: pm === "rest" ? normalizeLocation(entry.pmLocation) : "",
     };
   }
 
-  return { am: "empty", pm: "empty" };
+  return { am: "empty", pm: "empty", amLocation: "", pmLocation: "" };
 }
 
 function buildPayloadFromRows(memberRows, dayRows, customStatusRows) {
@@ -118,9 +135,23 @@ function buildPayloadFromRows(memberRows, dayRows, customStatusRows) {
 
     const morning = normalizeStatusKey(dayRow.morning_status);
     const afternoon = normalizeStatusKey(dayRow.afternoon_status);
-    const value = morning === afternoon
-      ? morning
-      : { type: "half", am: morning, pm: afternoon };
+    const morningLocation = morning === "rest" ? normalizeLocation(dayRow.morning_location) : "";
+    const afternoonLocation = afternoon === "rest" ? normalizeLocation(dayRow.afternoon_location) : "";
+
+    let value;
+    if (morning === afternoon && morningLocation === afternoonLocation) {
+      value = morning === "rest" && morningLocation
+        ? { type: "full", status: "rest", location: morningLocation }
+        : morning;
+    } else {
+      value = { type: "half", am: morning, pm: afternoon };
+      if (morning === "rest" && morningLocation) {
+        value.amLocation = morningLocation;
+      }
+      if (afternoon === "rest" && afternoonLocation) {
+        value.pmLocation = afternoonLocation;
+      }
+    }
 
     weeks.get(weekKey)[memberIndex][dayIndex] = value;
   });
@@ -228,7 +259,7 @@ function createApiRouter({ roomCapacity, supabase }) {
 
     const dayResult = await supabase
       .from(DAYS_TABLE)
-      .select("member_id, work_date, morning_status, afternoon_status");
+      .select("member_id, work_date, morning_status, afternoon_status, morning_location, afternoon_location");
 
     if (dayResult.error) {
       res.status(500).json({ error: "STATE_READ_FAILED", details: dayResult.error.message });
@@ -370,6 +401,8 @@ function createApiRouter({ roomCapacity, supabase }) {
               work_date: workDate,
               morning_status: dayEntry.am,
               afternoon_status: dayEntry.pm,
+              morning_location: dayEntry.amLocation || null,
+              afternoon_location: dayEntry.pmLocation || null,
             });
           }
         }
