@@ -38,8 +38,15 @@ body {
 }
 
 .board-header p {
-  margin: 0.35rem 0 0;
+  margin: 0;
   font-size: 0.95rem;
+}
+
+.board-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
 }
 
 #week-range {
@@ -217,6 +224,20 @@ td.name {
   min-width: 0;
 }
 
+.avatar-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.avatar-button:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+
 .remove-member-btn {
   border: 1px solid #a76639;
   background: #f8d7c2;
@@ -353,6 +374,64 @@ td.status.half-day {
 
 .empty {
   background: var(--empty);
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 45%);
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.modal.open {
+  display: flex;
+}
+
+.modal-panel {
+  width: min(460px, 100%);
+  background: #f2f2f2;
+  border: 1px solid #b5b5b5;
+  padding: 1rem;
+}
+
+.modal-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+.member-edit-form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.member-edit-form label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.member-edit-form input {
+  height: 31px;
+  border: 1px solid #adadad;
+  padding: 0.25rem 0.45rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.modal-actions button {
+  height: 31px;
+  border: 1px solid #8c8c8c;
+  background: #f6f6f6;
+  padding: 0 0.65rem;
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {

@@ -16,7 +16,6 @@
     <main class="board-wrap">
       <header class="board-header">
         <h1>Présence équipe</h1>
-        <p>Clique sur une case pour changer le statut (sans base de données pour le moment).</p>
         <p id="week-range"></p>
       </header>
 
@@ -29,7 +28,7 @@
             <button type="submit">Ajouter</button>
           </form>
         </div>
-        <p class="halfday-help">Double-clic sur une case pour passer en demi-journées (matin / après-midi), puis clique sur chaque moitié pour la modifier.</p>
+        <p class="halfday-help">Clic: change le statut. Double-clic: demi-journée. Clic droit: copie au jour suivant.</p>
       </section>
 
       <section class="table-area" aria-label="Tableau des présences">
@@ -50,6 +49,22 @@
         </form>
       </section>
     </main>
+
+    <div id="member-edit-modal" class="modal" aria-hidden="true">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="member-edit-title">
+        <h2 id="member-edit-title">Modifier la personne</h2>
+        <form id="member-edit-form" class="member-edit-form">
+          <label for="member-edit-name">Nom</label>
+          <input id="member-edit-name" name="memberEditName" type="text" maxlength="40" required />
+          <label for="member-edit-avatar">URL photo</label>
+          <input id="member-edit-avatar" name="memberEditAvatar" type="text" maxlength="200" />
+          <div class="modal-actions">
+            <button type="button" id="member-edit-cancel">Annuler</button>
+            <button type="submit">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <script src="/config.js"></script>
     <script src="app.js"></script>

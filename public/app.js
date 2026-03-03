@@ -11,6 +11,7 @@ const BASE_STATUSES = [
   { key: "leave", label: "Congé", className: "leave" },
   { key: "rest", label: "Biot", className: "rest" },
 ];
+const IMMUTABLE_STATUS_KEYS = new Set(["empty", "on-site", "remote", "leave"]);
 
 const CUSTOM_COLORS = ["#f8c291", "#c8e6c9", "#ffe082", "#d1c4e9", "#b2dfdb", "#f5b7b1", "#aed6f1"];
 
@@ -29,6 +30,11 @@ const customStatusInput = document.querySelector("#custom-status-name");
 const memberForm = document.querySelector("#member-form");
 const memberNameInput = document.querySelector("#member-name");
 const memberAvatarInput = document.querySelector("#member-avatar");
+const memberEditModal = document.querySelector("#member-edit-modal");
+const memberEditForm = document.querySelector("#member-edit-form");
+const memberEditNameInput = document.querySelector("#member-edit-name");
+const memberEditAvatarInput = document.querySelector("#member-edit-avatar");
+const memberEditCancelButton = document.querySelector("#member-edit-cancel");
 
 function createEmptyDayArray() {
   return Array(DAYS_PER_WEEK).fill("empty");
@@ -89,6 +95,67 @@ function cloneDayEntry(entry) {
     return { type: "half", am: entry.am, pm: entry.pm };
   }
   return entry;
+}
+
+function removeStatusKeyFromPlanning(statusKey) {
+  planningByWeek.forEach((weekPlanning) => {
+    if (!Array.isArray(weekPlanning)) {
+      return;
+    }
+
+    for (let memberIndex = 0; memberIndex < weekPlanning.length; memberIndex += 1) {
+      const memberPlanning = weekPlanning[memberIndex];
+      if (!Array.isArray(memberPlanning)) {
+        continue;
+      }
+
+      for (let dayIndex = 0; dayIndex < memberPlanning.length; dayIndex += 1) {
+        const entry = memberPlanning[dayIndex];
+        if (typeof entry === "string") {
+          if (entry === statusKey) {
+            memberPlanning[dayIndex] = "empty";
+          }
+          continue;
+        }
+
+        if (!isHalfDayEntry(entry)) {
+          continue;
+        }
+
+        const morning = entry.am === statusKey ? "empty" : entry.am;
+        const afternoon = entry.pm === statusKey ? "empty" : entry.pm;
+
+        if (morning === afternoon) {
+          memberPlanning[dayIndex] = morning;
+        } else {
+          memberPlanning[dayIndex] = { type: "half", am: morning, pm: afternoon };
+        }
+      }
+    }
+  });
+}
+
+function deleteCustomStatus(statusKey) {
+  if (IMMUTABLE_STATUS_KEYS.has(statusKey)) {
+    return;
+  }
+
+  const statusIndex = customStatuses.findIndex((status) => status.key === statusKey);
+  if (statusIndex === -1) {
+    return;
+  }
+
+  const statusLabel = customStatuses[statusIndex].label || statusKey;
+  const confirmed = window.confirm(`Supprimer le statut "${statusLabel}" ?`);
+  if (!confirmed) {
+    return;
+  }
+
+  customStatuses.splice(statusIndex, 1);
+  removeStatusKeyFromPlanning(statusKey);
+  savePlanningToStorage();
+  renderLegend();
+  renderBody();
 }
 
 function normalizeMember(member, fallbackIndex = 0) {
@@ -163,6 +230,7 @@ let saveTimer = null;
 let saveInProgress = false;
 let saveQueued = false;
 let storageReady = false;
+let editingMemberId = null;
 
 function buildSerializableState() {
   return {
@@ -361,6 +429,11 @@ function renderLegend() {
       chip.style.backgroundColor = status.color;
       chip.style.borderColor = "#b5b5b5";
     }
+
+    chip.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      deleteCustomStatus(status.key);
+    });
 
     statusLegend.append(chip);
   });
@@ -564,6 +637,25 @@ function createStatusCell(memberIndex, columnIndex) {
 
   let clickTimer = null;
 
+  td.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+
+    const nextColumnIndex = columnIndex + 1;
+    if (nextColumnIndex >= TOTAL_DAYS) {
+      return;
+    }
+
+    const nextPosition = getWeekAndDayIndex(nextColumnIndex);
+    const nextWeekPlanning = displayedWeekPlannings[nextPosition.weekIndex];
+    if (!nextWeekPlanning?.[memberIndex]) {
+      return;
+    }
+
+    nextWeekPlanning[memberIndex][nextPosition.dayIndex] = cloneDayEntry(weekPlanning[memberIndex][dayIndex]);
+    savePlanningToStorage();
+    renderBody();
+  });
+
   td.addEventListener("dblclick", (event) => {
     event.preventDefault();
     if (clickTimer) {
@@ -640,6 +732,27 @@ function removeMember(memberIndex) {
   renderBody();
 }
 
+function openMemberEditModal(memberId) {
+  const member = members.find((item) => item.id === memberId);
+  if (!member) {
+    return;
+  }
+
+  editingMemberId = member.id;
+  memberEditNameInput.value = member.name;
+  memberEditAvatarInput.value = member.avatar;
+  memberEditModal.classList.add("open");
+  memberEditModal.setAttribute("aria-hidden", "false");
+  memberEditNameInput.focus();
+  memberEditNameInput.select();
+}
+
+function closeMemberEditModal() {
+  memberEditModal.classList.remove("open");
+  memberEditModal.setAttribute("aria-hidden", "true");
+  editingMemberId = null;
+}
+
 function copyFirstWeekToSecondWeek(memberIndex) {
   if (DISPLAY_WEEKS < 2 || displayedWeekPlannings.length < 2) {
     return;
@@ -678,10 +791,20 @@ function renderBody() {
     avatar.alt = `Avatar ${member.name}`;
     avatar.loading = "lazy";
 
+    const avatarButton = document.createElement("button");
+    avatarButton.type = "button";
+    avatarButton.className = "avatar-button";
+    avatarButton.setAttribute("aria-label", `Modifier ${member.name}`);
+    avatarButton.append(avatar);
+    avatarButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openMemberEditModal(member.id);
+    });
+
     const label = document.createElement("span");
     label.textContent = member.name;
 
-    nameWrap.append(avatar, label);
+    nameWrap.append(avatarButton, label);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -792,6 +915,54 @@ memberForm.addEventListener("submit", (event) => {
   memberNameInput.value = "";
   memberAvatarInput.value = "";
   memberNameInput.focus();
+});
+
+memberEditForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  if (!editingMemberId) {
+    closeMemberEditModal();
+    return;
+  }
+
+  const memberIndex = members.findIndex((item) => item.id === editingMemberId);
+  if (memberIndex === -1) {
+    closeMemberEditModal();
+    return;
+  }
+
+  const normalizedName = memberEditNameInput.value.trim();
+  if (!normalizedName) {
+    memberEditNameInput.focus();
+    return;
+  }
+
+  const normalizedAvatar = memberEditAvatarInput.value.trim()
+    || `https://i.pravatar.cc/80?u=${encodeURIComponent(`${normalizedName}-${Date.now()}`)}`;
+
+  members[memberIndex].name = normalizedName;
+  members[memberIndex].avatar = normalizedAvatar;
+  sortMembersAndPlanning();
+  refreshDisplayedWeekPlannings();
+  savePlanningToStorage();
+  closeMemberEditModal();
+  renderBody();
+});
+
+memberEditCancelButton.addEventListener("click", () => {
+  closeMemberEditModal();
+});
+
+memberEditModal.addEventListener("click", (event) => {
+  if (event.target === memberEditModal) {
+    closeMemberEditModal();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && memberEditModal.classList.contains("open")) {
+    closeMemberEditModal();
+  }
 });
 
 renderWeekRange();

@@ -27,7 +27,9 @@
 1. Ouvrir SQL Editor dans Supabase.
 2. Executer le script:
    - `supabase/migrations/001_presence_state.sql`
-3. Verifier qu'une table `public.presence_state` existe.
+   - `supabase/migrations/002_presence_members_days.sql`
+   - `supabase/migrations/003_presence_custom_statuses.sql`
+3. Verifier que les tables `public.presence_members`, `public.presence_days` et `public.presence_custom_statuses` existent.
 4. Renseigner `.env` avec:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`

@@ -3,6 +3,7 @@ const express = require("express");
 
 const MEMBERS_TABLE = "presence_members";
 const DAYS_TABLE = "presence_days";
+const CUSTOM_STATUSES_TABLE = "presence_custom_statuses";
 const DAYS_PER_WEEK = 5;
 
 function createEmptyDayArray() {
@@ -88,7 +89,7 @@ function normalizeDayEntry(entry) {
   return { am: "empty", pm: "empty" };
 }
 
-function buildPayloadFromRows(memberRows, dayRows) {
+function buildPayloadFromRows(memberRows, dayRows, customStatusRows) {
   const members = memberRows.map((member) => ({
     id: member.id,
     name: member.name,
@@ -128,11 +129,49 @@ function buildPayloadFromRows(memberRows, dayRows) {
     Array.from(weeks.entries()).sort(([a], [b]) => a.localeCompare(b))
   );
 
+  const customStatuses = (customStatusRows || []).map((status) => ({
+    key: status.key,
+    label: status.label,
+    color: status.color,
+  }));
+
   return {
     members,
-    customStatuses: [],
+    customStatuses,
     weeks: orderedWeeks,
   };
+}
+
+function normalizeCustomStatuses(input) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const normalized = [];
+  const seen = new Set();
+
+  input.forEach((item, index) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+
+    const key = typeof item.key === "string" ? item.key.trim() : "";
+    const label = typeof item.label === "string" ? item.label.trim() : "";
+    const color = typeof item.color === "string" ? item.color.trim() : "";
+    if (!key || !label || !color || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    normalized.push({
+      key,
+      label,
+      color,
+      sort_order: index,
+    });
+  });
+
+  return normalized;
 }
 
 async function clearAllPresenceData(supabase) {
@@ -148,7 +187,15 @@ async function clearAllPresenceData(supabase) {
     .from(MEMBERS_TABLE)
     .delete()
     .not("id", "is", null);
-  return membersError;
+  if (membersError) {
+    return membersError;
+  }
+
+  const { error: statusesError } = await supabase
+    .from(CUSTOM_STATUSES_TABLE)
+    .delete()
+    .not("key", "is", null);
+  return statusesError;
 }
 
 function createApiRouter({ roomCapacity, supabase }) {
@@ -188,7 +235,22 @@ function createApiRouter({ roomCapacity, supabase }) {
       return;
     }
 
-    const payload = buildPayloadFromRows(membersResult.data || [], dayResult.data || []);
+    const customStatusesResult = await supabase
+      .from(CUSTOM_STATUSES_TABLE)
+      .select("key, label, color, sort_order")
+      .order("sort_order", { ascending: true })
+      .order("key", { ascending: true });
+
+    if (customStatusesResult.error) {
+      res.status(500).json({ error: "STATE_READ_FAILED", details: customStatusesResult.error.message });
+      return;
+    }
+
+    const payload = buildPayloadFromRows(
+      membersResult.data || [],
+      dayResult.data || [],
+      customStatusesResult.data || []
+    );
     res.json({
       payload,
       updatedAt: new Date().toISOString(),
@@ -208,6 +270,7 @@ function createApiRouter({ roomCapacity, supabase }) {
     }
 
     const normalizedMembers = [];
+    const normalizedCustomStatuses = normalizeCustomStatuses(payload.customStatuses);
     if (Array.isArray(payload.members)) {
       payload.members.forEach((member, index) => {
         if (!member || typeof member !== "object") {
@@ -330,6 +393,41 @@ function createApiRouter({ roomCapacity, supabase }) {
 
       if (insertDaysResult.error) {
         res.status(500).json({ error: "STATE_WRITE_FAILED", details: insertDaysResult.error.message });
+        return;
+      }
+    }
+
+    const upsertStatusesResult = await supabase
+      .from(CUSTOM_STATUSES_TABLE)
+      .upsert(normalizedCustomStatuses, { onConflict: "key" });
+
+    if (upsertStatusesResult.error) {
+      res.status(500).json({ error: "STATE_WRITE_FAILED", details: upsertStatusesResult.error.message });
+      return;
+    }
+
+    const existingStatusesResult = await supabase
+      .from(CUSTOM_STATUSES_TABLE)
+      .select("key");
+
+    if (existingStatusesResult.error) {
+      res.status(500).json({ error: "STATE_WRITE_FAILED", details: existingStatusesResult.error.message });
+      return;
+    }
+
+    const statusKeysToKeep = new Set(normalizedCustomStatuses.map((status) => status.key));
+    const statusKeysToDelete = (existingStatusesResult.data || [])
+      .map((status) => status.key)
+      .filter((key) => !statusKeysToKeep.has(key));
+
+    if (statusKeysToDelete.length > 0) {
+      const deleteStatusesResult = await supabase
+        .from(CUSTOM_STATUSES_TABLE)
+        .delete()
+        .in("key", statusKeysToDelete);
+
+      if (deleteStatusesResult.error) {
+        res.status(500).json({ error: "STATE_WRITE_FAILED", details: deleteStatusesResult.error.message });
         return;
       }
     }
