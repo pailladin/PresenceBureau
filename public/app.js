@@ -2,6 +2,7 @@
 const DISPLAY_WEEKS = 2;
 const TOTAL_DAYS = DAYS_PER_WEEK * DISPLAY_WEEKS;
 const ROOM_CAPACITY = Number(window.APP_CONFIG?.roomCapacity || 11);
+const WRITE_TOKEN_REQUIRED = Boolean(window.APP_CONFIG?.writeTokenRequired);
 const API_STATE_ENDPOINT = "/api/state";
 
 const BASE_STATUSES = [
@@ -320,6 +321,24 @@ let storageReady = false;
 let editingMemberId = null;
 let statusPickerElement = null;
 
+function getWriteToken() {
+  return window.localStorage.getItem("presence_write_token") || "";
+}
+
+function promptWriteToken() {
+  const value = window.prompt("Token d'edition requis. Entrez le token PRESENCE_WRITE_TOKEN :");
+  if (value === null) {
+    return "";
+  }
+  const token = value.trim();
+  if (token) {
+    window.localStorage.setItem("presence_write_token", token);
+    return token;
+  }
+  window.localStorage.removeItem("presence_write_token");
+  return "";
+}
+
 function buildSerializableState() {
   return {
     members,
@@ -399,11 +418,29 @@ async function flushStateSave() {
   saveQueued = false;
 
   try {
-    await fetch(API_STATE_ENDPOINT, {
+    let token = getWriteToken();
+    if (WRITE_TOKEN_REQUIRED && !token) {
+      token = promptWriteToken();
+      if (!token) {
+        return;
+      }
+    }
+
+    const response = await fetch(API_STATE_ENDPOINT, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "X-Presence-Token": token } : {}),
+      },
       body: JSON.stringify({ payload: buildSerializableState() }),
     });
+
+    if (response.status === 401) {
+      window.localStorage.removeItem("presence_write_token");
+      window.alert("Token d'edition invalide. Reessayez.");
+    } else if (response.status === 503) {
+      window.alert("Edition desactivee: configurez PRESENCE_WRITE_TOKEN sur le serveur.");
+    }
   } catch (error) {
     console.warn("Impossible de sauvegarder les présences dans Supabase.", error);
   } finally {

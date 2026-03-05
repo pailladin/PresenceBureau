@@ -229,6 +229,14 @@ async function clearAllPresenceData(supabase) {
   return statusesError;
 }
 
+function getProvidedWriteToken(req) {
+  const headerToken = req.get("x-presence-token");
+  if (typeof headerToken === "string" && headerToken.trim()) {
+    return headerToken.trim();
+  }
+  return "";
+}
+
 function createApiRouter({ roomCapacity, supabase }) {
   const router = express.Router();
 
@@ -289,6 +297,18 @@ function createApiRouter({ roomCapacity, supabase }) {
   });
 
   router.put("/state", async (req, res) => {
+    const expectedWriteToken = (process.env.PRESENCE_WRITE_TOKEN || "").trim();
+    if (!expectedWriteToken) {
+      res.status(503).json({ error: "WRITE_DISABLED", details: "PRESENCE_WRITE_TOKEN_NOT_CONFIGURED" });
+      return;
+    }
+
+    const providedWriteToken = getProvidedWriteToken(req);
+    if (providedWriteToken !== expectedWriteToken) {
+      res.status(401).json({ error: "UNAUTHORIZED_WRITE" });
+      return;
+    }
+
     if (!supabase) {
       res.status(503).json({ error: "SUPABASE_NOT_CONFIGURED" });
       return;
