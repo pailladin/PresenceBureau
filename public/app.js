@@ -295,7 +295,26 @@ function normalizeWeekPlanning(weekPlanning, memberCount, validStatusKeys) {
 
 function sortMembersAndPlanning() {
   const indexedMembers = members.map((member, originalIndex) => ({ member, originalIndex }));
-  indexedMembers.sort((a, b) => a.member.name.localeCompare(b.member.name, "fr", { sensitivity: "base" }));
+  indexedMembers.sort((a, b) => {
+    const normalizeForSort = (value) => String(value || "")
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/^[^a-zA-Z0-9]+/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, " ")
+      .trim()
+      .toLowerCase();
+
+    const keyA = normalizeForSort(a.member.name);
+    const keyB = normalizeForSort(b.member.name);
+    const keyCompare = keyA.localeCompare(keyB, "fr", { sensitivity: "base", numeric: true });
+
+    if (keyCompare !== 0) {
+      return keyCompare;
+    }
+
+    return a.member.name.localeCompare(b.member.name, "fr", { sensitivity: "base", numeric: true });
+  });
 
   const isSameOrder = indexedMembers.every((entry, sortedIndex) => entry.originalIndex === sortedIndex);
   if (isSameOrder) {
